@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import AzureChatOpenAI
 
 from mit.config import get_config
+from mit.llm import get_chat_llm
 from mit.logging import get_logger
 from mit.rag.retriever import Retriever
 from mit.state import AgentResponse, AgentState
@@ -28,13 +28,7 @@ class BaseSubAgent(ABC):
     def __init__(self) -> None:
         """Initialize the sub-agent with LLM and retriever."""
         config = get_config()
-        self.llm = AzureChatOpenAI(
-            azure_endpoint=config.azure_openai.endpoint,
-            api_key=config.azure_openai.api_key,
-            api_version=config.azure_openai.api_version,
-            azure_deployment=config.azure_openai.deployment,
-            temperature=config.agent.temperature,
-        )
+        self.llm = get_chat_llm(temperature=config.agent.temperature)
         self.retriever = Retriever(collection_name=self.collection_name)
         self._prompt_template = self._build_prompt_template()
         self._logger = get_logger(f"agent.{self.name}")

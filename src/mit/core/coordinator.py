@@ -4,11 +4,11 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, START, StateGraph
 
 from mit.config import get_config
 from mit.core.base_agent import BaseSubAgent
+from mit.llm import get_chat_llm
 from mit.logging import get_logger
 from mit.state import AgentState
 
@@ -27,15 +27,9 @@ class BaseCoordinator(ABC):
 
     def __init__(self) -> None:
         """Initialize the coordinator with LLM for classification."""
-        config = get_config()
-        self.llm = AzureChatOpenAI(
-            azure_endpoint=config.azure_openai.endpoint,
-            api_key=config.azure_openai.api_key,
-            api_version=config.azure_openai.api_version,
-            azure_deployment=config.azure_openai.deployment,
-            temperature=0.0,
-        )
+        self.llm = get_chat_llm(temperature=0.0)
         self._classifier_prompt = self._build_classifier_prompt()
+        self._synthesize_prompt = self._build_synthesize_prompt()
         self._graph = None
         self._logger = get_logger(f"coordinator.{self.name}")
 
@@ -58,6 +52,26 @@ Available sub-agents:
 Respond with ONLY the sub-agent name, nothing else.""",
                 ),
                 ("human", "{query}"),
+            ]
+        )
+
+    def _build_synthesize_prompt(self) -> ChatPromptTemplate:
+        """Build prompt for response synthesis."""
+        return ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    f"""You are the {self.name} module coordinator.
+Your role is to synthesize the information gathered from sub-agents and provide a final, coherent response to the user.
+
+Review the sub-agent's response and:
+1. Ensure the answer is complete and addresses the user's question
+2. Add any necessary context or clarification
+3. Format the response clearly for the user
+
+If the sub-agent couldn't fully answer, acknowledge what was found and what remains unknown.""",
+                ),
+                ("human", "User question: {query}\n\nSub-agent response:\n{sub_agent_response}\n\nPlease provide a synthesized final answer:"),
             ]
         )
 
@@ -137,6 +151,46 @@ Respond with ONLY the sub-agent name, nothing else.""",
 
         return "end"
 
+    async def synthesize_node(self, state: AgentState) -> AgentState:
+        """Synthesize sub-agent responses into a final answer."""
+        self._logger.debug("Synthesizing final response...")
+        
+        # Get the original query
+        messages = state.get("messages", [])
+        query = ""
+        for msg in reversed(messages):
+            if hasattr(msg, "type") and msg.type == "human":
+                query = msg.content
+                break
+            elif isinstance(msg, tuple) and msg[0] == "human":
+                query = msg[1]
+                break
+        
+        # Get sub-agent response
+        sub_agent_response = state.get("final_answer", "")
+        
+        if not sub_agent_response:
+            return state
+        
+        # Synthesize the response
+        chain = self._synthesize_prompt | self.llm
+        response = await chain.ainvoke({
+            "query": query,
+            "sub_agent_response": sub_agent_response,
+        })
+        
+        self._logger.info("Response synthesized")
+        
+        # Add the AI response to messages for memory
+        from langchain_core.messages import AIMessage
+        new_messages = list(state.get("messages", [])) + [AIMessage(content=response.content)]
+        
+        return {
+            **state,
+            "messages": new_messages,
+            "final_answer": response.content,
+        }
+
     @abstractmethod
     def build_graph(self) -> StateGraph:
         """Build the custom workflow graph for this module.
@@ -167,6 +221,9 @@ Respond with ONLY the sub-agent name, nothing else.""",
 
         # Add referral handler
         builder.add_node("handle_referral", self.handle_referral)
+        
+        # Add synthesize node - coordinator summarizes before returning
+        builder.add_node("synthesize", self.synthesize_node)
 
         # Define edges
         builder.add_edge(START, "classify")
@@ -176,12 +233,12 @@ Respond with ONLY the sub-agent name, nothing else.""",
             {name: name for name in self.sub_agents.keys()},
         )
 
-        # Each sub-agent can either end or continue via referral
+        # Each sub-agent can either continue via referral or go to synthesize
         for name in self.sub_agents.keys():
             builder.add_conditional_edges(
                 name,
                 self.should_continue,
-                {"continue": "handle_referral", "end": END},
+                {"continue": "handle_referral", "end": "synthesize"},
             )
 
         # Referral handler routes back to sub-agent
@@ -190,5 +247,8 @@ Respond with ONLY the sub-agent name, nothing else.""",
             self.route_to_sub_agent,
             {name: name for name in self.sub_agents.keys()},
         )
+        
+        # Synthesize node ends the graph
+        builder.add_edge("synthesize", END)
 
         return builder

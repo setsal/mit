@@ -24,27 +24,22 @@ async def run_query(query: str, thread_id: str | None = None) -> str:
     Returns:
         Agent response
     """
+    from langchain_core.messages import HumanMessage
+    
     graph = get_graph()
     config = get_config()
 
     if thread_id is None:
         thread_id = str(uuid.uuid4())
 
-    initial_state: AgentState = {
-        "messages": [("human", query)],
-        "thread_id": thread_id,
-        "current_module": "",
-        "current_sub_agent": "",
-        "hop_count": 0,
-        "max_hops": config.agent.max_hops,
-        "visited_agents": [],
-        "context": [],
-        "final_answer": None,
-        "referral": None,
+    # Only pass the new message - the checkpointer handles state persistence
+    # The graph will merge this with existing state via the add_messages reducer
+    input_state = {
+        "messages": [HumanMessage(content=query)],
     }
 
     result = await graph.ainvoke(
-        initial_state,
+        input_state,
         config={"configurable": {"thread_id": thread_id}},
     )
 

@@ -1,11 +1,10 @@
 """Module router - entry point for routing to module owners."""
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, START, StateGraph
 
-from mit.config import get_config
 from mit.core.coordinator import BaseCoordinator
+from mit.llm import get_chat_llm
 from mit.logging import get_logger
 from mit.state import AgentState
 
@@ -22,14 +21,7 @@ class ModuleRouter:
             agents: Dictionary mapping module names to coordinator instances
         """
         self.agents = agents
-        config = get_config()
-        self.llm = AzureChatOpenAI(
-            azure_endpoint=config.azure_openai.endpoint,
-            api_key=config.azure_openai.api_key,
-            api_version=config.azure_openai.api_version,
-            azure_deployment=config.azure_openai.deployment,
-            temperature=0.0,
-        )
+        self.llm = get_chat_llm(temperature=0.0)
         self._router_prompt = self._build_router_prompt()
 
     def _build_router_prompt(self) -> ChatPromptTemplate:
@@ -71,6 +63,9 @@ Respond with ONLY the module name, nothing else.""",
 
     async def router_node(self, state: AgentState) -> AgentState:
         """Node that routes to the appropriate module."""
+        from mit.config import get_config
+        config = get_config()
+        
         messages = state.get("messages", [])
         query = ""
         for msg in reversed(messages):
@@ -83,11 +78,18 @@ Respond with ONLY the module name, nothing else.""",
 
         module_name = await self.route_query(query)
 
+        # Initialize all state fields (important for first invocation)
         return {
             **state,
             "current_module": module_name,
-            "hop_count": 0,  # Reset hop count for new module
+            "current_sub_agent": state.get("current_sub_agent", ""),
+            "hop_count": 0,  # Reset hop count for new query
+            "max_hops": state.get("max_hops", config.agent.max_hops),
             "visited_agents": [],
+            "context": state.get("context", []),
+            "final_answer": None,
+            "referral": None,
+            "thread_id": state.get("thread_id", ""),
         }
 
     def route_to_module(self, state: AgentState) -> str:

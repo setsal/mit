@@ -4,7 +4,7 @@ from pathlib import Path
 
 import chromadb
 from chromadb.config import Settings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
 from mit.config import get_config

@@ -1,6 +1,6 @@
 """Data ingestion script for the MIT framework.
 
-This script loads .md and .txt files from the data directory,
+This script loads .md and .txt files from the materials directory,
 generates embeddings, and stores them in ChromaDB.
 """
 
@@ -122,7 +122,7 @@ def ingest_folder(data_dir: Path, folder: str, collection_name: str) -> int:
     vectorstore = VectorStore(collection_name)
 
     # Clear existing collection
-    vectorstore.delete_collection()
+    # vectorstore.delete_collection()
 
     # Add documents
     vectorstore.add_documents(chunks)
@@ -137,22 +137,22 @@ def main():
     print("MIT Data Ingestion")
     print("=" * 60)
 
-    # Determine data directory
+    # Determine materials directory
     script_dir = Path(__file__).parent
     project_dir = script_dir.parent
-    data_dir = project_dir / "data"
+    materials_dir = project_dir / "materials"
 
-    if not data_dir.exists():
-        print(f"Error: Data directory not found: {data_dir}")
-        print("Please create the data directory with your knowledge files.")
+    if not materials_dir.exists():
+        print(f"Error: Materials directory not found: {materials_dir}")
+        print("Please create the materials directory with your knowledge files.")
         sys.exit(1)
 
-    print(f"Data directory: {data_dir}")
+    print(f"Materials directory: {materials_dir}")
 
     total_chunks = 0
 
     for folder, collection_name in COLLECTION_MAPPING.items():
-        chunks = ingest_folder(data_dir, folder, collection_name)
+        chunks = ingest_folder(materials_dir, folder, collection_name)
         total_chunks += chunks
 
     print("\n" + "=" * 60)

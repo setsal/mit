@@ -2,6 +2,24 @@
 
 import os
 from dataclasses import dataclass, field
+from typing import Literal
+
+
+LLMProvider = Literal["openai", "azure"]
+
+
+@dataclass
+class OpenAIConfig:
+    """OpenAI configuration."""
+
+    api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
+    model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4"))
+    embedding_model: str = field(
+        default_factory=lambda: os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002")
+    )
+    base_url: str = field(
+        default_factory=lambda: os.getenv("OPENAI_BASE_URL", "")
+    )  # Optional: for custom endpoints
 
 
 @dataclass
@@ -30,7 +48,7 @@ class ChromaDBConfig:
     """ChromaDB configuration."""
 
     persist_dir: str = field(
-        default_factory=lambda: os.getenv("CHROMADB_PERSIST_DIR", "./chroma_db")
+        default_factory=lambda: os.getenv("CHROMADB_PERSIST_DIR", "./data/rag/chroma_db")
     )
 
 
@@ -50,6 +68,11 @@ class AgentConfig:
 class Config:
     """Main configuration container."""
 
+    # LLM provider: "openai" (default) or "azure"
+    llm_provider: LLMProvider = field(
+        default_factory=lambda: os.getenv("LLM_PROVIDER", "openai")
+    )
+    openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     azure_openai: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
     chromadb: ChromaDBConfig = field(default_factory=ChromaDBConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
