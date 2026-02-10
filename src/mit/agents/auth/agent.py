@@ -14,6 +14,7 @@ class AuthAgent(BaseCoordinator):
     """
 
     name = "auth"
+    description = "Handles authentication questions: OAuth flows, token management, auth errors, and security configurations."
 
     def __init__(self) -> None:
         """Initialize the Auth agent with sub-agents."""

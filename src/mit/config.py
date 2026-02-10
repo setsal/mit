@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-LLMProvider = Literal["openai", "azure"]
+LLMProvider = Literal["openai", "azure", "gemini"]
 
 
 @dataclass
@@ -44,6 +44,17 @@ class AzureOpenAIConfig:
 
 
 @dataclass
+class GeminiConfig:
+    """Google Gemini configuration."""
+
+    api_key: str = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY", ""))
+    model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+    embedding_model: str = field(
+        default_factory=lambda: os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+    )
+
+
+@dataclass
 class ChromaDBConfig:
     """ChromaDB configuration."""
 
@@ -68,12 +79,13 @@ class AgentConfig:
 class Config:
     """Main configuration container."""
 
-    # LLM provider: "openai" (default) or "azure"
+    # LLM provider: "openai" (default), "azure", or "gemini"
     llm_provider: LLMProvider = field(
         default_factory=lambda: os.getenv("LLM_PROVIDER", "openai")
     )
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     azure_openai: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
+    gemini: GeminiConfig = field(default_factory=GeminiConfig)
     chromadb: ChromaDBConfig = field(default_factory=ChromaDBConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
 

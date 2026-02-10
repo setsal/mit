@@ -53,6 +53,7 @@ from mit.agents.your_agent.schema import SchemaSubAgent
 
 class DatabaseAgent(BaseCoordinator):
     name = "database"
+    description = "Handles database questions: SQL queries, schema design, and optimization."
     
     def __init__(self):
         self.sub_agents = {
@@ -64,6 +65,9 @@ class DatabaseAgent(BaseCoordinator):
     def build_graph(self) -> StateGraph:
         return self.build_default_graph()  # Use default routing
 ```
+
+> [!IMPORTANT]
+> The `description` field is **required**. The router uses it to decide whether a query should be routed to your agent. Write a concise summary of what your agent handles.
 
 ---
 
@@ -99,9 +103,9 @@ def create_graph(...):
 
 ## Step 6: Add Knowledge Data
 
-1. Create data folder:
+1. Create materials folder:
    ```
-   data/your_agent/
+   materials/your_agent/
    ├── queries/     # For QueriesSubAgent
    │   └── *.md
    └── schema/      # For SchemaSubAgent
@@ -128,9 +132,9 @@ def create_graph(...):
 
 - [ ] Create folder `src/mit/agents/your_agent/`
 - [ ] Create sub-agent classes extending `BaseSubAgent`
-- [ ] Create coordinator class extending `BaseCoordinator`
+- [ ] Create coordinator class extending `BaseCoordinator` (with `description`)
 - [ ] Create `__init__.py` with exports
 - [ ] Register agent in `graph.py`
-- [ ] Add knowledge files to `data/your_agent/`
+- [ ] Add knowledge files to `materials/your_agent/`
 - [ ] Update `scripts/ingest.py` collection mapping
 - [ ] Run `uv run python scripts/ingest.py`

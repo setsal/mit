@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 
 from mit.config import get_config
 from mit.core.base_agent import BaseSubAgent
-from mit.llm import get_chat_llm
+from mit.llm import extract_text, get_chat_llm
 from mit.logging import get_logger
 from mit.state import AgentState
 
@@ -23,6 +23,7 @@ class BaseCoordinator(ABC):
     """
 
     name: str
+    description: str  # Brief description of what this module handles
     sub_agents: dict[str, BaseSubAgent]
 
     def __init__(self) -> None:
@@ -80,7 +81,7 @@ If the sub-agent couldn't fully answer, acknowledge what was found and what rema
         self._logger.debug(f"Classifying query: {query[:100]}...")
         chain = self._classifier_prompt | self.llm
         response = await chain.ainvoke({"query": query})
-        agent_name = response.content.strip().lower()
+        agent_name = extract_text(response.content).strip().lower()
 
         # Validate agent name
         if agent_name in self.sub_agents:
@@ -179,16 +180,18 @@ If the sub-agent couldn't fully answer, acknowledge what was found and what rema
             "sub_agent_response": sub_agent_response,
         })
         
+        text = extract_text(response.content)
+        
         self._logger.info("Response synthesized")
         
         # Add the AI response to messages for memory
         from langchain_core.messages import AIMessage
-        new_messages = list(state.get("messages", [])) + [AIMessage(content=response.content)]
+        new_messages = list(state.get("messages", [])) + [AIMessage(content=text)]
         
         return {
             **state,
             "messages": new_messages,
-            "final_answer": response.content,
+            "final_answer": text,
         }
 
     @abstractmethod

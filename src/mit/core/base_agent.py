@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 
 from mit.config import get_config
-from mit.llm import get_chat_llm
+from mit.llm import extract_text, get_chat_llm
 from mit.logging import get_logger
 from mit.rag.retriever import Retriever
 from mit.state import AgentResponse, AgentState
@@ -72,15 +72,16 @@ Context:
 
         chain = self._prompt_template | self.llm
         response = await chain.ainvoke({"context": context_text, "query": query})
+        response_text = extract_text(response.content)
 
         # Parse response for referrals
-        referral = self._detect_referral(response.content)
+        referral = self._detect_referral(response_text)
         if referral:
             self._logger.info(f"Detected referral -> {referral}")
 
         self._logger.info("Response generated")
         return AgentResponse(
-            answer=response.content,
+            answer=response_text,
             sources=[doc.metadata.get("source", "unknown") for doc in context],
             referral=referral,
             confidence=1.0 if context else 0.5,

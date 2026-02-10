@@ -1,4 +1,4 @@
-"""Embeddings factory for both OpenAI and Azure OpenAI."""
+"""Embeddings factory for OpenAI, Azure OpenAI, and Google Gemini."""
 
 from langchain_openai import AzureOpenAIEmbeddings, OpenAIEmbeddings
 
@@ -7,10 +7,10 @@ from mit.logging import get_logger
 
 logger = get_logger("embeddings")
 
-_embeddings_instance: OpenAIEmbeddings | AzureOpenAIEmbeddings | None = None
+_embeddings_instance = None
 
 
-def get_embeddings() -> OpenAIEmbeddings | AzureOpenAIEmbeddings:
+def get_embeddings():
     """Get the shared embeddings instance based on configuration."""
     global _embeddings_instance
 
@@ -24,6 +24,14 @@ def get_embeddings() -> OpenAIEmbeddings | AzureOpenAIEmbeddings:
                 api_key=config.azure_openai.api_key,
                 api_version=config.azure_openai.api_version,
                 azure_deployment=config.azure_openai.embedding_deployment,
+            )
+        elif config.llm_provider == "gemini":
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+            logger.debug("Using Google Gemini Embeddings")
+            _embeddings_instance = GoogleGenerativeAIEmbeddings(
+                model=config.gemini.embedding_model,
+                google_api_key=config.gemini.api_key,
             )
         else:
             logger.debug("Using OpenAI Embeddings")

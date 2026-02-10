@@ -14,6 +14,7 @@ class NetworkAgent(BaseCoordinator):
     """
 
     name = "network"
+    description = "Handles network library questions: API endpoints, parameters, error codes, and troubleshooting network issues."
 
     def __init__(self) -> None:
         """Initialize the Network agent with sub-agents."""
