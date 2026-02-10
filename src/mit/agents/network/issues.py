@@ -14,6 +14,7 @@ class IssuesSubAgent(BaseSubAgent):
     """
 
     collection_name = "network_issues"
+    description = "HTTP error codes, connection problems, timeouts, and performance troubleshooting."
     system_prompt = """You are a troubleshooting expert for the Network Library.
 Your role is to help diagnose and fix common issues:
 - HTTP error codes (504 Gateway Timeout, 401 Unauthorized, 403 Forbidden, etc.)

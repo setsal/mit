@@ -34,6 +34,13 @@ class BaseCoordinator(ABC):
         self._graph = None
         self._logger = get_logger(f"coordinator.{self.name}")
 
+        # Inject sibling awareness into sub-agents
+        sibling_map = {
+            name: agent.description for name, agent in self.sub_agents.items()
+        }
+        for agent in self.sub_agents.values():
+            agent.set_siblings(sibling_map)
+
     def _build_classifier_prompt(self) -> ChatPromptTemplate:
         """Build prompt for query classification."""
         agent_descriptions = "\n".join(

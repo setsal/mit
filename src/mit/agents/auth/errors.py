@@ -14,6 +14,7 @@ class AuthErrorsSubAgent(BaseSubAgent):
     """
 
     collection_name = "auth_errors"
+    description = "Authentication error troubleshooting: 401/403 errors, token expiration, and invalid credentials."
     system_prompt = """You are an authentication troubleshooting expert for the Auth module.
 Your role is to help diagnose and fix authentication-related issues:
 - 401 Unauthorized errors (invalid/missing credentials)

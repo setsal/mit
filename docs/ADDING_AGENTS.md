@@ -29,6 +29,7 @@ from mit.core.base_agent import BaseSubAgent
 
 class QueriesSubAgent(BaseSubAgent):
     collection_name = "database_queries"  # ChromaDB collection
+    description = "SQL query writing, optimization, and troubleshooting."
     system_prompt = """You are a database query expert.
     Answer questions about SQL queries and optimization."""
     can_refer_to = ["schema"]  # Optional: agents this can refer to
@@ -37,6 +38,9 @@ class QueriesSubAgent(BaseSubAgent):
     def name(self) -> str:
         return "queries"
 ```
+
+> [!NOTE]
+> The `description` field is used for **sibling awareness** — the coordinator injects sibling descriptions into each sub-agent's prompt so they can proactively trigger referrals even when their documents don't mention other agents.
 
 ---
 

@@ -14,6 +14,7 @@ class OAuthSubAgent(BaseSubAgent):
     """
 
     collection_name = "auth_oauth"
+    description = "OAuth 2.0 grant types, token formats, scope definitions, and authorization flows."
     system_prompt = """You are an OAuth 2.0 expert for the Auth module.
 Your role is to answer questions about:
 - OAuth 2.0 grant types (authorization code, client credentials, etc.)

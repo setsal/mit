@@ -18,11 +18,13 @@ class BaseSubAgent(ABC):
     Each sub-agent must define:
     - collection_name: ChromaDB collection to query
     - system_prompt: Agent personality and instructions
+    - description: Brief description of what this agent handles
     - can_refer_to: List of sub-agents this agent can refer to
     """
 
     collection_name: str
     system_prompt: str
+    description: str  # Brief description for sibling awareness
     can_refer_to: list[str] = []
 
     def __init__(self) -> None:
@@ -30,14 +32,37 @@ class BaseSubAgent(ABC):
         config = get_config()
         self.llm = get_chat_llm(temperature=config.agent.temperature)
         self.retriever = Retriever(collection_name=self.collection_name)
-        self._prompt_template = self._build_prompt_template()
+        self._sibling_descriptions: dict[str, str] = {}  # Set by coordinator
+        self._prompt_template = None  # Built lazily after siblings are set
         self._logger = get_logger(f"agent.{self.name}")
+
+    def set_siblings(self, siblings: dict[str, str]) -> None:
+        """Set sibling agent descriptions for referral awareness.
+
+        Args:
+            siblings: Dict mapping sibling agent names to their descriptions
+        """
+        self._sibling_descriptions = {k: v for k, v in siblings.items() if k != self.name}
+        self._prompt_template = self._build_prompt_template()  # Rebuild with sibling info
 
     def _build_prompt_template(self) -> ChatPromptTemplate:
         """Build the prompt template for this agent."""
+        # Build sibling awareness section
+        sibling_section = ""
+        if self._sibling_descriptions:
+            sibling_lines = "\n".join(
+                f"- {name}: {desc}"
+                for name, desc in self._sibling_descriptions.items()
+            )
+            sibling_section = f"""\n\nYou are part of a team of specialized agents. Here are your sibling agents:
+{sibling_lines}
+
+If the user's question relates to a sibling agent's expertise, include a referral suggestion in your response.
+Use phrases like "refer to [agent_name]" or "consult [agent_name] agent" to trigger a referral."""
+
         return ChatPromptTemplate.from_messages(
             [
-                ("system", self.system_prompt),
+                ("system", self.system_prompt + sibling_section),
                 (
                     "system",
                     """Use the following context to answer the user's question.

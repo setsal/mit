@@ -14,6 +14,7 @@ class ApiRefSubAgent(BaseSubAgent):
     """
 
     collection_name = "network_api_ref"
+    description = "API endpoint definitions, request/response formats, parameter types, and authentication requirements."
     system_prompt = """You are an API reference expert for the Network Library.
 Your role is to answer questions about:
 - Endpoint definitions and URLs
