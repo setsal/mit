@@ -22,9 +22,28 @@ cp .env.example .env
 # Ingest knowledge data
 uv run python scripts/ingest.py
 
-# Run the application
+# Run the application (CLI)
 uv run python -m mit.main
 ```
+
+## Demo Interface (Chainlit + FastAPI)
+
+```bash
+# Install server dependencies
+uv sync --extra server
+
+# Option 1: Chainlit Chat UI (port 8080)
+uv run chainlit run chainlit_app.py --port 8080
+
+# Option 2: FastAPI REST API (port 8000)
+uv run uvicorn mit.server.app:app --reload --port 8000
+```
+
+- **Chainlit**: Open `http://localhost:8080` for a Chat UI with real-time multi-agent step visualization
+- **FastAPI**: Open `http://localhost:8000/docs` for Swagger UI
+  - `POST /chat` — Standard Q&A
+  - `POST /chat/stream` — SSE streaming (with step events)
+  - `GET /graph` — Get graph structure (Mermaid format)
 
 ## Project Structure
 
