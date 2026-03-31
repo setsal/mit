@@ -41,48 +41,66 @@ async def on_chat_start():
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    """Handle incoming user messages with streaming step visualization."""
+    """Handle incoming user messages with streaming step visualization.
+
+    Uses a single updating message to show live processing status,
+    then replaces it with a collapsible step summary + final answer.
+    This avoids cl.Step which always renders below message content.
+    """
     thread_id = cl.user_session.get("thread_id")
 
-    # Track active steps so we can close them properly
-    active_steps: dict[str, cl.Step] = {}
+    # Single response message — updated in real-time during processing
+    response_msg = cl.Message(content="⏳ 處理中...")
+    await response_msg.send()
+
+    # Track step state for live status display
+    active_steps: dict[str, str] = {}  # node -> label
+    completed_steps: list[str] = []
     final_answer = None
+
+    def _build_live_status() -> str:
+        """Build a live status string showing completed and active steps."""
+        lines = []
+        for label in completed_steps:
+            lines.append(f"✅ ~~{label}~~")
+        for label in active_steps.values():
+            lines.append(f"⏳ {label}")
+        return "\n".join(lines) if lines else "⏳ 處理中..."
 
     async for event in stream_query(message.content, thread_id):
         if event.event == "step_start" and event.node and event.content:
-            # Create a new Chainlit Step to show this node's activity
-            step = cl.Step(name=event.content, type="tool")
-            await step.send()
-            active_steps[event.node] = step
+            active_steps[event.node] = event.content
+            response_msg.content = _build_live_status()
+            await response_msg.update()
 
         elif event.event == "step_end" and event.node:
-            # Close the step when the node finishes
-            step = active_steps.pop(event.node, None)
-            if step:
-                step.output = "✅ 完成"
-                await step.update()
+            label = active_steps.pop(event.node, None)
+            if label:
+                completed_steps.append(label)
+            response_msg.content = _build_live_status()
+            await response_msg.update()
 
         elif event.event == "final_answer":
             final_answer = event.content
 
         elif event.event == "done":
-            # Update thread_id in case it was auto-generated
             if event.content:
                 cl.user_session.set("thread_id", event.content)
 
         elif event.event == "error":
-            await cl.Message(
-                content=f"❌ 錯誤：{event.content}",
-            ).send()
+            response_msg.content = f"❌ 錯誤：{event.content}"
+            await response_msg.update()
             return
 
-    # Close any remaining active steps
-    for step in active_steps.values():
-        step.output = "✅ 完成"
-        await step.update()
+    # Build the final message: collapsible step summary on top, answer below
+    step_lines = "\n".join(f"- ✅ {label}" for label in completed_steps)
+    steps_section = (
+        f"<details>\n<summary>🔍 處理步驟 ({len(completed_steps)} 步)</summary>\n\n"
+        f"{step_lines}\n\n</details>\n\n"
+        if completed_steps
+        else ""
+    )
 
-    # Send the final answer
-    if final_answer:
-        await cl.Message(content=final_answer).send()
-    else:
-        await cl.Message(content="⚠️ 無法產生回答。").send()
+    answer = final_answer or "⚠️ 無法產生回答。"
+    response_msg.content = f"{steps_section}{answer}"
+    await response_msg.update()

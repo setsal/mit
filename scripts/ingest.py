@@ -22,6 +22,7 @@ COLLECTION_MAPPING = {
     "network/issues": "network_issues",
     "auth/oauth": "auth_oauth",
     "auth/errors": "auth_errors",
+    "greeting/knowledge": "greeting_knowledge",
 }
 
 

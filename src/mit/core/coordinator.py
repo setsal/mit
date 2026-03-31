@@ -8,9 +8,13 @@ from langgraph.graph import END, START, StateGraph
 
 from mit.config import get_config
 from mit.core.base_agent import BaseSubAgent
+from mit.core.simple_agent import SimpleLLMAgent
 from mit.llm import extract_text, get_chat_llm
 from mit.logging import get_logger
 from mit.state import AgentState
+
+# Type alias for sub-agents: both RAG-powered and LLM-only agents
+SubAgentType = BaseSubAgent | SimpleLLMAgent
 
 
 class BaseCoordinator(ABC):
@@ -20,11 +24,14 @@ class BaseCoordinator(ABC):
     - name: Module identifier
     - sub_agents: Dictionary of sub-agent instances
     - build_graph(): Custom workflow state machine
+
+    For modules with a single sub-agent, use build_single_agent_graph()
+    instead of build_default_graph() to skip unnecessary classification.
     """
 
     name: str
     description: str  # Brief description of what this module handles
-    sub_agents: dict[str, BaseSubAgent]
+    sub_agents: dict[str, SubAgentType]
 
     def __init__(self) -> None:
         """Initialize the coordinator with LLM for classification."""
@@ -259,6 +266,39 @@ If the sub-agent couldn't fully answer, acknowledge what was found and what rema
         )
         
         # Synthesize node ends the graph
+        builder.add_edge("synthesize", END)
+
+        return builder
+
+    def build_single_agent_graph(self) -> StateGraph:
+        """Build a simplified graph for coordinators with a single sub-agent.
+
+        Skips classification (unnecessary with one agent) and referral handling.
+        Flow: START → <sub-agent> → synthesize → END
+
+        Raises:
+            ValueError: If there is not exactly one sub-agent
+        """
+        if len(self.sub_agents) != 1:
+            raise ValueError(
+                f"build_single_agent_graph() requires exactly 1 sub-agent, "
+                f"got {len(self.sub_agents)}: {list(self.sub_agents.keys())}. "
+                f"Use build_default_graph() for multiple sub-agents."
+            )
+
+        agent_name, agent = next(iter(self.sub_agents.items()))
+
+        builder = StateGraph(AgentState)
+
+        # Add the single sub-agent node
+        builder.add_node(agent_name, agent.invoke)
+
+        # Add synthesize node - coordinator summarizes before returning
+        builder.add_node("synthesize", self.synthesize_node)
+
+        # Simple linear flow: START → agent → synthesize → END
+        builder.add_edge(START, agent_name)
+        builder.add_edge(agent_name, "synthesize")
         builder.add_edge("synthesize", END)
 
         return builder

@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph
 
 from mit.agents.network import NetworkAgent
 from mit.agents.auth import AuthAgent
+from mit.agents.greeting import GreetingAgent
 from mit.core.router import ModuleRouter
 from mit.state import AgentState
 
@@ -22,6 +23,7 @@ def create_graph(checkpointer: MemorySaver | None = None) -> StateGraph:
     agents = {
         "network": NetworkAgent(),
         "auth": AuthAgent(),
+        "greeting": GreetingAgent(),
     }
 
     # Create router

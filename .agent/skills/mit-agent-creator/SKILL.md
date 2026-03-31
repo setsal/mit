@@ -15,7 +15,9 @@ Generate a complete agent module for the MIT (Multi Intelligence Twin) framework
 
 ## Prerequisites
 
-The user must have documents organized in:
+The user must have documents organized in one of two structures:
+
+**Multi-agent mode** (multiple sub-folders):
 ```
 materials/<agent_name>/
 ├── <sub_agent_a>/
@@ -24,19 +26,30 @@ materials/<agent_name>/
     └── *.md / *.txt
 ```
 
+**Single-agent mode** (one sub-folder):
+```
+materials/<agent_name>/
+└── <sub_agent>/
+    └── *.md / *.txt
+```
+
 ## Step-by-Step Process
 
-### Step 1: Scan Materials Folder
+### Step 1: Scan Materials Folder & Detect Mode
 
 Read the `materials/` directory to discover the agent name and sub-agent names:
 
 ```
 materials/<AGENT_NAME>/
 ├── <SUB_AGENT_1>/    → becomes a sub-agent
-└── <SUB_AGENT_2>/    → becomes another sub-agent
+└── <SUB_AGENT_2>/    → becomes another sub-agent (if exists)
 ```
 
 The folder names become the module name and sub-agent names. Briefly read the documents inside each sub-folder to understand what each sub-agent should specialize in.
+
+**Mode detection:**
+- If there are **2 or more** sub-folders → **Multi-agent mode** (use `build_default_graph()`)
+- If there is **exactly 1** sub-folder → **Single-agent mode** (use `build_single_agent_graph()`)
 
 ### Step 2: Create Sub-Agent Files
 
@@ -86,12 +99,16 @@ Always base your answers on the provided context."""
 - `collection_name` = `<agent_name>_<sub_agent_name>` (underscore joined)
 - `description` = concise one-liner (used for sibling awareness and routing)
 - `system_prompt` = detailed role instructions derived from reading the actual documents
-- `can_refer_to` = list sibling sub-agent names where cross-referral makes sense
+- `can_refer_to` = list sibling sub-agent names where cross-referral makes sense. **For single-agent mode, set to `[]`**
 - `name` property = matches the sub-agent folder name
 
 ### Step 3: Create Agent Coordinator
 
-Create the coordinator at `src/mit/agents/<agent_name>/agent.py`:
+Create the coordinator at `src/mit/agents/<agent_name>/agent.py`.
+
+**Choose the correct template based on the detected mode:**
+
+#### Multi-Agent Mode (2+ sub-agents)
 
 ```python
 """<Agent> agent - coordinator for <domain>-related queries."""
@@ -125,11 +142,49 @@ class <AgentClass>(BaseCoordinator):
         return self.build_default_graph()
 ```
 
+#### Single-Agent Mode (1 sub-agent)
+
+```python
+"""<Agent> agent - coordinator for <domain>-related queries."""
+
+from langgraph.graph import StateGraph
+
+from mit.core.coordinator import BaseCoordinator
+from mit.agents.<agent_name>.<sub_agent> import <SubAgentClass>
+
+
+class <AgentClass>(BaseCoordinator):
+    """<Agent> module owner.
+
+    Single sub-agent coordinator that handles <domain> queries.
+    Uses build_single_agent_graph() to skip unnecessary classification.
+    """
+
+    name = "<agent_name>"
+    description = "<One line describing what this module handles overall>"
+
+    def __init__(self) -> None:
+        """Initialize the <Agent> agent with a single sub-agent."""
+        self.sub_agents = {
+            "<sub_agent>": <SubAgentClass>(),
+        }
+        super().__init__()
+
+    def build_graph(self) -> StateGraph:
+        """Build the workflow graph for <Agent> module.
+
+        Uses single-agent graph since there is only one sub-agent.
+        """
+        return self.build_single_agent_graph()
+```
+
 **Key rules:**
 - `name` = matches the materials folder name
 - `description` = required, used by the router for query routing decisions
 - `sub_agents` dict keys = match the sub-folder names
 - Always call `super().__init__()` AFTER setting `self.sub_agents`
+- **Single-agent mode**: use `build_single_agent_graph()` (skips classification and referral)
+- **Multi-agent mode**: use `build_default_graph()` (full classification + referral loop)
 
 ### Step 4: Create `__init__.py`
 
@@ -142,6 +197,8 @@ from mit.agents.<agent_name>.<sub_agent_2> import <SubAgent2Class>
 
 __all__ = ["<AgentClass>", "<SubAgent1Class>", "<SubAgent2Class>"]
 ```
+
+For single-agent mode, include only the one sub-agent class.
 
 ### Step 5: Register Agent in Graph
 
@@ -164,6 +221,8 @@ COLLECTION_MAPPING = {
 
 The mapping key = folder path under `materials/`, the value = `collection_name` used in the sub-agent.
 
+For single-agent mode, there will be only one entry.
+
 ### Step 7: Run Ingestion
 
 ```bash
@@ -181,6 +240,18 @@ Or run the full system:
 uv run python -m mit.main
 ```
 
+## Mode Comparison
+
+| Aspect | Multi-Agent Mode | Single-Agent Mode |
+|--------|-----------------|-------------------|
+| Sub-folders | 2+ | Exactly 1 |
+| Coordinator graph | `build_default_graph()` | `build_single_agent_graph()` |
+| Classification LLM call | Yes (routes between sub-agents) | No (skipped) |
+| Referral handling | Yes (cross-referral loop) | No (skipped) |
+| `can_refer_to` | List sibling names | `[]` (empty) |
+| Graph flow | `classify → route → agent → referral → synthesize` | `agent → synthesize` |
+| Latency | Higher (extra LLM call for classification) | Lower (direct execution) |
+
 ## Naming Conventions Summary
 
 | Item | Convention | Example |
@@ -196,8 +267,9 @@ uv run python -m mit.main
 
 ## Reference: Existing Agent Examples
 
-- **Network Agent**: `src/mit/agents/network/` with sub-agents `api_ref` and `issues`
-- **Auth Agent**: `src/mit/agents/auth/` with sub-agents `oauth` and `errors`
+- **Network Agent** (multi-agent): `src/mit/agents/network/` with sub-agents `api_ref` and `issues`
+- **Auth Agent** (multi-agent): `src/mit/agents/auth/` with sub-agents `oauth` and `errors`
+- **Greeting Agent** (single-agent): `src/mit/agents/greeting/` with single sub-agent `knowledge`
 
 ## Important Notes
 
@@ -206,3 +278,5 @@ uv run python -m mit.main
 - Coordinator descriptions enable **smart routing** — the router uses them to decide which module handles a query
 - Read the actual documents in materials to write accurate `system_prompt` and `description` values
 - The router can also handle queries directly if they don't match any agent
+- **Single-agent mode** saves latency by skipping the classification LLM call
+- For agents with no RAG (pure LLM), use `SimpleLLMAgent` instead of `BaseSubAgent` (import from `mit.core.simple_agent`)
